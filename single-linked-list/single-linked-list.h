@@ -146,11 +146,7 @@ public:
     // Возвращает итератор, указывающий на позицию, следующую за последним элементом односвязного списка
     // Разыменовывать этот итератор нельзя — попытка разыменования приведёт к неопределённому поведению
     [[nodiscard]] Iterator end() noexcept {
-        Iterator iter_after_last(this->begin());
-        while (iter_after_last.node_ != nullptr) {
-            ++iter_after_last;
-        }
-        return iter_after_last;
+        return std::next(this->begin(), this->size_);
     }
 
     // Возвращает константный итератор, ссылающийся на первый элемент
@@ -164,11 +160,7 @@ public:
     // Разыменовывать этот итератор нельзя — попытка разыменования приведёт к неопределённому поведению
     // Результат вызова эквивалентен вызову метода cend()
     [[nodiscard]] ConstIterator end() const noexcept {
-        ConstIterator iter_after_last(this->begin());
-        while (iter_after_last.node_ != nullptr) {
-            ++iter_after_last;
-        }
-        return iter_after_last;
+        return std::next(this->begin(), this->size_);
     }
 
     // Возвращает константный итератор, ссылающийся на первый элемент
