@@ -1,10 +1,11 @@
 #pragma once
-
 #include <cassert>
 #include <cstddef>
 #include <initializer_list>
+#include <iterator>
 #include <string>
 #include <utility>
+#include <iterator>
 
 template <typename Type>
 class SingleLinkedList {
@@ -65,10 +66,7 @@ class SingleLinkedList {
         // Оператор сравнения итераторов (в роли второго аргумента выступает константный итератор)
         // Два итератора равны, если они ссылаются на один и тот же элемент списка либо на end()
         [[nodiscard]] bool operator==(const BasicIterator<const Type>& rhs) const noexcept {
-            if (node_ == rhs.node_) {
-                return true;
-            }
-            return false;
+            return node_ == rhs.node_;
         }
 
         // Оператор проверки итераторов на неравенство
@@ -93,6 +91,7 @@ class SingleLinkedList {
         // Возвращает ссылку на самого себя
         // Инкремент итератора, не указывающего на существующий элемент списка, приводит к неопределённому поведению
         BasicIterator& operator++() noexcept {
+            assert(node_ != nullptr);
             node_ = node_->next_node;
             return *this;
         }
@@ -102,12 +101,9 @@ class SingleLinkedList {
         // Инкремент итератора, не указывающего на существующий элемент списка,
         // приводит к неопределённому поведению
         BasicIterator operator++(int) noexcept {
-            if (node_ != nullptr) {
-                auto old_value(*this);
-                ++(*this);
-                return old_value;
-            }
-            return *this;
+            auto old_value(*this);
+            ++(*this);
+            return old_value;
         }
 
         // Операция разыменования. Возвращает ссылку на текущий элемент
@@ -115,7 +111,7 @@ class SingleLinkedList {
         // приводит к неопределённому поведению
         [[nodiscard]] reference operator*() const noexcept {
             assert(node_);
-            return node_->value;         
+            return node_->value;
         }
 
         // Операция доступа к члену класса. Возвращает указатель на текущий элемент списка
@@ -205,8 +201,8 @@ public:
             Node* save_ptr = head_.next_node->next_node;
             delete head_.next_node;
             head_.next_node = save_ptr;
-            --size_;
         }
+        size_ = 0;
     }
 
     // Возвращает количество элементов в списке
@@ -219,36 +215,13 @@ public:
         return size_ == 0;
     }
 
-    SingleLinkedList(std::initializer_list<Type> values) {
-        SingleLinkedList tmp;
 
-        for (auto it = std::rbegin(values); it != std::rend(values); ++it) {
-            tmp.PushFront(*it);
-        }
-        swap(tmp);
+    SingleLinkedList(std::initializer_list<Type> values) {
+        Assign(values.begin(), values.end());
     }
 
     SingleLinkedList(const SingleLinkedList& other) {
-        // Сначала надо удостовериться, что текущий список пуст
-        assert(size_ == 0 && head_.next_node == nullptr);
-        // скопировать внутрь buffer_node элементы other
-        SingleLinkedList buffer_list;
-        buffer_list.size_ = other.size_;
-        Node* last = nullptr;
-        for (Node* n = other.head_.next_node; n != nullptr; n = n->next_node) {
-            Node* node = new Node(n->value, nullptr);
-            if (buffer_list.head_.next_node) {
-                last->next_node = node;
-                
-            }
-            else {
-                buffer_list.head_.next_node = node;
-            }
-            last = node;
-        }
-        // После того как элементы скопированы, обмениваем данные текущего списка и buffer_list
-        swap(buffer_list);
-        // Теперь buffer_list пуст, а текущий список содержит копию элементов other
+        Assign(other.begin(), other.end());
     }
 
     SingleLinkedList& operator=(const SingleLinkedList& rhs) {
@@ -262,12 +235,8 @@ public:
     }
 
     void swap(SingleLinkedList& other) noexcept {
-        const auto tmp_next_node = other.head_.next_node;
-        const auto tmp_size = other.size_;
-        other.head_.next_node = head_.next_node;
-        other.size_ = size_;
-        head_.next_node = tmp_next_node;
-        size_ = tmp_size;
+        std::swap(this->head_.next_node, other.head_.next_node);
+        std::swap(this->size_, other.size_);
     }
 
     // Возвращает итератор, указывающий на позицию перед первым элементом односвязного списка.
@@ -294,20 +263,18 @@ public:
      * Если при создании элемента будет выброшено исключение, список останется в прежнем состоянии
      */
     Iterator InsertAfter(ConstIterator pos, const Type& value) {
-        //Node new_node(value, pos.node_->next_node);
+        assert(pos.node_ != nullptr);
         pos.node_->next_node = new Node(value, pos.node_->next_node);
         ++size_;
         return Iterator(pos.node_->next_node);
     }
-        
 
     void PopFront() noexcept {
-        if (!IsEmpty()) {
-            Node* t = head_.next_node;
-            head_.next_node = t->next_node;
-            --size_;
-            delete t;
-        }
+        assert(!IsEmpty());
+        Node* t = head_.next_node;
+        head_.next_node = t->next_node;
+        --size_;
+        delete t;
     }
 
     /*
@@ -315,12 +282,11 @@ public:
      * Возвращает итератор на элемент, следующий за удалённым
      */
     Iterator EraseAfter(ConstIterator pos) noexcept {
-        if (!IsEmpty()) {
-            Node* t = pos.node_->next_node;// указатель на удаляемый элемент
-            pos.node_->next_node = t->next_node;
-            --size_;
-            delete t;
-        }
+        assert(pos.node_ != nullptr);
+        Node* t = pos.node_->next_node;// указатель на удаляемый элемент
+        pos.node_->next_node = t->next_node;
+        --size_;
+        delete t;
         return Iterator(pos.node_->next_node);
     }
 
@@ -328,6 +294,29 @@ private:
     // Фиктивный узел, используется для вставки "перед первым элементом"
     Node head_ = { {} , nullptr };
     size_t size_ = 0;
+
+    template <typename RangeIterator>
+    void Assign(const RangeIterator range_begin, const RangeIterator range_end) {
+        // Сначала надо удостовериться, что текущий список пуст
+        assert(size_ == 0 && head_.next_node == nullptr);
+        // скопировать внутрь buffer_node элементы списка
+        SingleLinkedList buffer_list;
+        buffer_list.size_ = std::distance(range_begin, range_end);
+        Node* last = nullptr;
+        for (RangeIterator n = range_begin; n != range_end; n = std::next(n)) {
+            Node* node = new Node(*n, nullptr);
+            if (buffer_list.head_.next_node) {
+                last->next_node = node;
+            }
+            else {
+                buffer_list.head_.next_node = node;
+            }
+            last = node;
+        }
+        // После того как элементы скопированы, обмениваем данные текущего списка и buffer_list
+        swap(buffer_list);
+        // Теперь buffer_list пуст, а текущий список содержит копию элементов
+    }
 };
 
 template <typename Type>
@@ -353,13 +342,13 @@ bool operator<(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& 
 }
 
 template <typename Type>
-bool operator<=(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
-    return lhs == rhs || lhs < rhs;
+bool operator>(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
+    return rhs < lhs;
 }
 
 template <typename Type>
-bool operator>(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
-    return rhs < lhs;
+bool operator<=(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
+    return !(lhs > rhs);
 }
 
 template <typename Type>
